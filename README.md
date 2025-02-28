@@ -23,7 +23,8 @@ Discover the latest `<crypto/>` moves in my Telegram Channel:
 4. Add your API keys to `inputs/accounts.txt`
 5. (Optional) Add proxies to `inputs/proxies.txt`
 6. To start the bot use `START.bat` (or run `python main.py`)
-7. To close all open orders use `CLOSE_ORDERS.bat` (or run `python close_all_orders.py`)
+7. To check account balances use `CHECK_BALANCES.bat` (or run `python check_balances.py`)
+8. To close all open orders use `CLOSE_ORDERS.bat` (or run `python close_all_orders.py`)
 
 ## Configuration Guide 📧
 
@@ -97,7 +98,27 @@ To use this mode:
 
 For detailed information on grid trading, see the [Grid Trading Documentation](core/position_management/README.md).
 
+## Utility Scripts
+
+The project includes several utility scripts to help manage your trading:
+
+### Balance Checking
+
+To check balances for all your accounts:
+
+```bash
+python check_balances.py
+```
+
+On Windows, you can use the `CHECK_BALANCES.bat` file:
+```
+CHECK_BALANCES.bat
+```
+
+This will show a table of all assets across all accounts in your accounts.txt file.
+
 ### Closing Orders
+
 To close all open orders (useful for stopping grid trading, or in case of emergencies):
 
 ```bash
