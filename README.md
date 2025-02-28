@@ -98,9 +98,21 @@ To use this mode:
 
 For detailed information on grid trading, see the [Grid Trading Documentation](core/position_management/README.md).
 
-## Utility Scripts
+## New Features Summary
 
-The project includes several utility scripts to help manage your trading:
+Recent updates to the project have added significant new capabilities:
+
+### 1. Grid Trading System
+- Create a grid of buy/sell orders at regular price intervals
+- Automatically "buy low, sell high" as price moves within the grid
+- Dynamic grid adjustment when price moves outside the range
+- Position tracking with weighted average entry price
+- Take profit targets based on position entry price
+- Automatic order resizing based on available balance
+- Graceful handling of insufficient funds
+
+### 2. Utility Scripts
+The project now includes several utility scripts to help manage your trading:
 
 ### Balance Checking
 
@@ -136,9 +148,9 @@ CLOSE_ORDERS.bat SOL_USDC
 
 This will cancel all open orders for your account on Backpack Exchange.
 
-## Testing
+### 3. Testing Framework
 
-The project includes a comprehensive test suite for verifying grid trading functionality:
+The project now includes a comprehensive test suite for verifying grid trading functionality:
 
 ```bash
 # Run all tests
@@ -155,3 +167,38 @@ The tests cover:
 - Take profit logic
 - Price deviation handling
 - Multiple bot management
+
+## Development Summary
+
+This project has evolved from a simple volume generation bot to a comprehensive trading suite with position management capabilities.
+
+### Key Features Added:
+1. **Grid Trading System**
+   - Fully automated market making strategy
+   - Position tracking with weighted average entry
+   - Take profit functionality based on entry price
+   - Dynamic grid adjustment for changing market conditions
+   - Smart order placement with minimum size enforcement
+
+2. **Utility Tools**
+   - Balance checker for monitoring assets across accounts
+   - Order cancellation tool for emergency management
+   - Windows batch files for easy access to all features
+
+3. **Enhanced Error Handling**
+   - Graceful handling of insufficient funds
+   - Better logging with detailed information
+   - Proper session management and cleanup
+
+4. **Testing Framework**
+   - Unit tests for core components
+   - Async tests for network operations
+   - Easy test runner script
+
+### Configuration Options
+The system now offers multiple trading modes:
+- **Volume Mode**: Simple buy/sell cycling for exchange volume requirements
+- **Grid Mode**: Automated market making for profit from price volatility
+- **Mixed Mode**: Run different strategies on different pairs
+
+All features maintain backward compatibility with the original volume generation functionality.
