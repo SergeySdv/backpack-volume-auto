@@ -9,17 +9,18 @@ MIN_BALANCE_TO_LEFT = 0  # min amount to left on the balance, if 0, it is traded
 
 TRADE_AMOUNT = [0, 0]  # (works nearly from +-20%), minimum (5$) and maximum amount to trade in USD, if 0 it will trade on FULL balance
 ALLOWED_ASSETS = ["SOL_USDC", "PYTH_USDC", "JTO_USDC", "HNT_USDC", "MOBILE_USDC", "BONK_USDC", "WIF_USDC", "JUP_USDC",
-                  "RENDER_USDC", "WEN_USDC", "BTC_USDC", "W_USDC", "TNSR_USDC", "PRCL_USDC", "SHFL_SDC"]
+                  "RENDER_USDC", "WEN_USDC", "BTC_USDC", "W_USDC", "TNSR_USDC", "PRCL_USDC", "SHFL_USDC"]
 
 # Volatility moment
 # DEPTH of limit order to trade as market order
 DEPTH = 3  # 1-20, optimal - 3-5, recommend up to 10, bigger depth = better market order but more slippage
 
-
-
-
-
-
+# Position Management - Grid Trading Settings
+ENABLE_GRID_TRADING = False  # Set to True to enable grid trading mode
+GRID_TRADING_PAIRS = ["SOL_USDC"]  # Trading pairs to use for grid trading
+GRID_LEVELS = 5  # Number of grid levels to create on each side (buy/sell)
+GRID_SPREAD = 0.01  # Price difference between grid levels (1% = 0.01)
+GRID_ORDER_SIZE = None  # Size of each grid order in base asset, None for auto-calculation
 
 
 
