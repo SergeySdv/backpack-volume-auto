@@ -23,6 +23,7 @@ Discover the latest `<crypto/>` moves in my Telegram Channel:
 4. Add your API keys to `inputs/accounts.txt`
 5. (Optional) Add proxies to `inputs/proxies.txt`
 6. To start the bot use `START.bat` (or run `python main.py`)
+7. To close all open orders use `CLOSE_ORDERS.bat` (or run `python close_all_orders.py`)
 
 ## Configuration Guide 📧
 
@@ -95,6 +96,24 @@ To use this mode:
 4. Set your profit target with `TAKE_PROFIT_PERCENTAGE`
 
 For detailed information on grid trading, see the [Grid Trading Documentation](core/position_management/README.md).
+
+### Closing Orders
+To close all open orders (useful for stopping grid trading, or in case of emergencies):
+
+```bash
+# Close all open orders on all pairs
+python close_all_orders.py
+
+# Close orders for a specific pair
+python close_all_orders.py SOL_USDC
+```
+
+On Windows, you can use the `CLOSE_ORDERS.bat` file, optionally with a trading pair:
+```
+CLOSE_ORDERS.bat SOL_USDC
+```
+
+This will cancel all open orders for your account on Backpack Exchange.
 
 ## Testing
 
