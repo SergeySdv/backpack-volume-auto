@@ -63,24 +63,48 @@ async def close_all_orders(api_key, api_secret, proxy, symbol=None):
         # Get open orders
         if symbol:
             # Get open orders for specific symbol
+            logger.info(f"Checking {symbol} for open orders...")
             response = await client.get_open_orders(symbol)
             resp_json = await response.json()
             
             if response.status != 200:
                 logger.error(f"Failed to get open orders for {symbol}: {resp_json}")
                 return False
+                
+            # Handle no orders case
+            if not resp_json:
+                logger.info(f"No open orders found for {symbol}")
+                return True
+                
+            # Count orders
+            orders_count = len(resp_json)
+            logger.info(f"Found {orders_count} open orders for {symbol}")
             
             # Cancel each order
+            cancelled_count = 0
             for order in resp_json:
                 order_id = order.get("id")
+                order_side = order.get("side", "unknown")
+                order_price = order.get("price", "unknown")
+                order_quantity = order.get("quantity", "unknown")
+                
                 if order_id:
-                    logger.info(f"Cancelling order {order_id} for {symbol}")
+                    logger.info(f"Cancelling {order_side} order {order_id} for {symbol}: {order_quantity} @ {order_price}")
                     cancel_resp = await client.cancel_order_by_id(symbol, order_id)
                     
                     if cancel_resp.status == 200:
-                        logger.info(f"Successfully cancelled order {order_id}")
+                        cancelled_count += 1
+                        logger.info(f"✅ Successfully cancelled order {order_id}")
                     else:
-                        logger.warning(f"Failed to cancel order {order_id}: {await cancel_resp.text()}")
+                        logger.warning(f"❌ Failed to cancel order {order_id}: {await cancel_resp.text()}")
+            
+            # Summary
+            if cancelled_count == orders_count:
+                logger.info(f"✅ Successfully cancelled all {cancelled_count} orders for {symbol}")
+            else:
+                logger.info(f"⚠️ Cancelled {cancelled_count}/{orders_count} orders for {symbol}")
+            
+            return cancelled_count > 0
         else:
             # Get open orders for each trading pair from config
             from inputs.config import ALLOWED_ASSETS
@@ -89,9 +113,17 @@ async def close_all_orders(api_key, api_secret, proxy, symbol=None):
             trading_pairs = ALLOWED_ASSETS
             logger.info(f"Checking {len(trading_pairs)} trading pairs for open orders")
             
+            # Track total orders found and cancelled
+            total_orders_found = 0
+            total_orders_cancelled = 0
+            processed_pairs = 0
+            
             # Process each trading pair
             for pair in trading_pairs:
                 try:
+                    processed_pairs += 1
+                    logger.info(f"[{processed_pairs}/{len(trading_pairs)}] Checking {pair} for open orders...")
+                    
                     # Get open orders for this pair
                     response = await client.get_open_orders(pair)
                     resp_json = await response.json()
@@ -102,24 +134,43 @@ async def close_all_orders(api_key, api_secret, proxy, symbol=None):
                     
                     # Skip if no orders
                     if not resp_json:
+                        logger.info(f"No open orders found for {pair}")
                         continue
-                        
-                    logger.info(f"Found {len(resp_json)} open orders for {pair}")
+                    
+                    # Count orders    
+                    orders_count = len(resp_json)
+                    total_orders_found += orders_count
+                    logger.info(f"Found {orders_count} open orders for {pair}")
                     
                     # Cancel each order
+                    cancelled_for_pair = 0
                     for order in resp_json:
                         order_id = order.get("id")
+                        order_side = order.get("side", "unknown")
+                        order_price = order.get("price", "unknown")
+                        order_quantity = order.get("quantity", "unknown")
+                        
                         if order_id:
-                            logger.info(f"Cancelling order {order_id} for {pair}")
+                            logger.info(f"Cancelling {order_side} order {order_id} for {pair}: {order_quantity} @ {order_price}")
                             cancel_resp = await client.cancel_order_by_id(pair, order_id)
                             
                             if cancel_resp.status == 200:
-                                logger.info(f"Successfully cancelled order {order_id}")
+                                cancelled_for_pair += 1
+                                total_orders_cancelled += 1
+                                logger.info(f"✅ Successfully cancelled order {order_id}")
                             else:
-                                logger.warning(f"Failed to cancel order {order_id}: {await cancel_resp.text()}")
+                                logger.warning(f"❌ Failed to cancel order {order_id}: {await cancel_resp.text()}")
+                    
+                    logger.info(f"Cancelled {cancelled_for_pair}/{orders_count} orders for {pair}")
                 
                 except Exception as e:
                     logger.error(f"Error processing {pair}: {e}")
+            
+            # Summary
+            if total_orders_found == 0:
+                logger.info(f"No open orders found across any of the {len(trading_pairs)} trading pairs")
+            else:
+                logger.info(f"Summary: Found {total_orders_found} orders, successfully cancelled {total_orders_cancelled} orders")
         
         return True
     except Exception as e:
@@ -136,20 +187,31 @@ async def close_all_orders(api_key, api_secret, proxy, symbol=None):
 
 async def main():
     """Main function"""
+    # Show script banner
+    print("\n" + "=" * 60)
+    print("  BACKPACK ORDER CANCELLATION TOOL")
+    print("=" * 60 + "\n")
+    
     # Determine target symbol from command line argument
     target_symbol = None
     if len(sys.argv) > 1:
         target_symbol = sys.argv[1].upper()
-        logger.info(f"Closing orders for {target_symbol}")
+        logger.info(f"🎯 Target: Closing orders for specific pair: {target_symbol}")
     else:
-        logger.info("Closing orders for all trading pairs")
+        logger.info("🎯 Target: Closing orders for all trading pairs")
     
     # Get accounts and proxies
     accounts, proxies = await get_accounts(ACCOUNTS_FILE_PATH, PROXIES_FILE_PATH)
     
     if not accounts:
-        logger.error("No accounts found")
+        logger.error("❌ No accounts found in accounts.txt. Please add your API keys.")
         return
+    
+    logger.info(f"🔑 Found {len(accounts)} accounts to process")
+    
+    # Track success/failure
+    success_count = 0
+    failure_count = 0
     
     # Close orders for each account
     for i, account in enumerate(accounts):
@@ -157,13 +219,29 @@ async def main():
             api_key, api_secret = account.split(":")
             proxy = proxies[i] if i < len(proxies) else None
             
-            logger.info(f"Processing account {api_key[:8]}...")
+            logger.info(f"\n📊 Processing account {i+1}/{len(accounts)}: {api_key[:8]}...")
             
             # Close orders
-            await close_all_orders(api_key, api_secret, proxy, target_symbol)
+            result = await close_all_orders(api_key, api_secret, proxy, target_symbol)
             
+            if result:
+                success_count += 1
+            else:
+                failure_count += 1
+                
         except Exception as e:
-            logger.error(f"Error processing account {i+1}: {e}")
+            logger.error(f"❌ Error processing account {i+1}: {e}")
+            failure_count += 1
+    
+    # Final summary
+    print("\n" + "=" * 60)
+    if success_count > 0 and failure_count == 0:
+        logger.info(f"✅ Successfully processed all {success_count} accounts")
+    elif success_count > 0 and failure_count > 0:
+        logger.info(f"⚠️ Processed {success_count} accounts successfully, {failure_count} accounts had errors")
+    else:
+        logger.error(f"❌ Failed to process any accounts successfully")
+    print("=" * 60 + "\n")
     
     logger.info("Done!")
 
