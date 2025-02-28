@@ -1,6 +1,7 @@
 
 import asyncio
 import decimal
+from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
 from tenacity import retry, stop_after_attempt, wait_random, retry_if_exception_type
@@ -14,7 +15,7 @@ from core.utils import logger
 class BotWorker:
     def __init__(self, backpack: BackpackTrade, symbol: str, 
                  grid_levels: int = 5, grid_spread: float = 0.01, 
-                 order_size: float = None):
+                 order_size: float = None, take_profit_percentage: float = 3.0):
         """
         Grid trading implementation for Backpack exchange.
         
@@ -24,17 +25,23 @@ class BotWorker:
             grid_levels: Number of grid levels to create
             grid_spread: Price difference between grid levels (percentage)
             order_size: Size of each grid order (if None, calculated from balance)
+            take_profit_percentage: Percentage profit target for take-profit orders
         """
         self.backpack = backpack
         self.symbol = symbol
         self.grid_levels = grid_levels
         self.grid_spread = grid_spread
         self.order_size = order_size
+        self.take_profit_percentage = take_profit_percentage
         
         self.base_asset, self.quote_asset = symbol.split("_")
         self.active_orders: Dict[str, dict] = {}  # order_id -> order_details
         self.last_price: Optional[float] = None
         self.is_running = False
+        
+        # Position tracking
+        self.current_position = None
+        self.filled_orders = []  # Track filled orders for position calculation
         
     async def start_grid(self):
         """Start the grid trading bot"""
@@ -243,6 +250,9 @@ class BotWorker:
         """Update status of all active orders"""
         if not self.active_orders:
             return
+        
+        current_price = await self.get_current_price()
+        unfilled_orders_to_reposition = []
             
         for order_id in list(self.active_orders.keys()):
             try:
@@ -251,10 +261,23 @@ class BotWorker:
                 
                 if response.status == 200:
                     status = resp_json.get("status")
+                    order_details = self.active_orders[order_id]
+                    
+                    # Check if order is too far from market price and needs repositioning
+                    order_price = float(order_details["price"])
+                    price_diff_pct = abs(current_price - order_price) / current_price
+                    
+                    # If price has moved significantly and order is still open, add to reposition list
+                    if status == "open" and price_diff_pct > (self.grid_spread * 3):
+                        unfilled_orders_to_reposition.append(order_id)
+                        continue
                     
                     if status == "filled":
                         logger.info(f"Order {order_id} filled")
                         order_details = self.active_orders.pop(order_id)
+                        
+                        # Update position tracking
+                        self.update_position(order_details)
                         
                         # Place a counter order
                         await self._place_counter_order(order_details)
@@ -265,14 +288,132 @@ class BotWorker:
                         
             except Exception as e:
                 logger.error(f"Error updating order {order_id} status: {e}")
+        
+        # Reposition orders that are too far from current price
+        for order_id in unfilled_orders_to_reposition:
+            try:
+                order_details = self.active_orders[order_id]
+                logger.info(f"Repositioning order {order_id} closer to current price")
+                
+                # Cancel the existing order
+                await self.backpack.cancel_order(self.symbol, order_id)
+                self.active_orders.pop(order_id, None)
+                
+                # Place a new order closer to current price
+                side = order_details["side"]
+                new_price = current_price * (1 - self.grid_spread) if side == "buy" else current_price * (1 + self.grid_spread)
+                await self._place_grid_order(side, new_price)
+                
+            except Exception as e:
+                logger.error(f"Error repositioning order {order_id}: {e}")
+    
+    def update_position(self, filled_order: dict):
+        """Update position when an order is filled"""
+        try:
+            # Extract execution details
+            executed_size = Decimal(str(filled_order['amount']))
+            executed_price = Decimal(str(filled_order['price']))
+            side = filled_order['side']
+            
+            if executed_size <= 0 or executed_price <= 0:
+                logger.error(f"Invalid order execution data: size={executed_size}, price={executed_price}")
+                return
+                
+            logger.info(f"Processing executed {side} order: size={executed_size}, price={executed_price}")
+            
+            # For sell orders, we're reducing position
+            if side == "sell":
+                # If we have a current position, reduce it
+                if self.filled_orders:
+                    # Find matching buy orders to reduce
+                    remaining_size = executed_size
+                    new_filled_orders = []
+                    
+                    for order in self.filled_orders:
+                        if remaining_size <= 0:
+                            new_filled_orders.append(order)
+                            continue
+                            
+                        order_size = Decimal(str(order['size']))
+                        if order_size <= remaining_size:
+                            # This buy order is fully matched by the sell
+                            remaining_size -= order_size
+                        else:
+                            # This buy order is partially matched
+                            new_size = order_size - remaining_size
+                            new_filled_orders.append({
+                                'price': order['price'],
+                                'size': float(new_size)
+                            })
+                            remaining_size = 0
+                    
+                    self.filled_orders = new_filled_orders
+            else:
+                # For buy orders, add to position
+                self.filled_orders.append({
+                    'price': float(executed_price),
+                    'size': float(executed_size)
+                })
+            
+            # Calculate total position
+            if not self.filled_orders:
+                self.current_position = None
+                logger.info("Position fully closed")
+                return
+                
+            total_size = sum(Decimal(str(order['size'])) for order in self.filled_orders)
+            weighted_sum = sum(Decimal(str(order['price'])) * Decimal(str(order['size'])) for order in self.filled_orders)
+            
+            if total_size > 0:
+                avg_price = weighted_sum / total_size
+                self.current_position = {
+                    'entry_price': float(avg_price),
+                    'size': float(total_size)
+                }
+                logger.info(f"Updated position: entry_price={self.current_position['entry_price']}, size={self.current_position['size']}")
+            else:
+                self.current_position = None
+                logger.info("Position closed (size = 0)")
+                
+        except Exception as e:
+            logger.error(f"Error updating position: {e}")
+    
+    def get_take_profit_price(self):
+        """Calculate take profit price based on average entry"""
+        try:
+            if not self.current_position:
+                logger.warning("No position exists to calculate take-profit price")
+                return None
+                
+            entry_price = Decimal(str(self.current_position['entry_price']))
+            profit_mult = 1 + (Decimal(str(self.take_profit_percentage)) / 100)
+            take_profit_price = float(entry_price * profit_mult)
+            
+            logger.info(f"Calculated take-profit price: {take_profit_price} (entry: {entry_price}, profit: {self.take_profit_percentage}%)")
+            return take_profit_price
+            
+        except Exception as e:
+            logger.error(f"Error calculating take-profit price: {e}")
+            return None
     
     async def _place_counter_order(self, filled_order: dict):
         """Place a counter order when a grid order is filled"""
         counter_side = "sell" if filled_order["side"] == "buy" else "buy"
         
-        # Calculate counter price: for buys we sell higher, for sells we buy lower
-        price_direction = 1 if counter_side == "sell" else -1
-        counter_price = filled_order["price"] * (1 + (price_direction * self.grid_spread))
+        # Different price calculation based on side
+        if counter_side == "sell" and self.current_position:
+            # For sell orders, we can use take profit calculation if it's available
+            take_profit_price = self.get_take_profit_price()
+            if take_profit_price:
+                counter_price = take_profit_price
+                logger.info(f"Using take-profit price for counter order: {counter_price}")
+            else:
+                # Fall back to grid spread if no take profit available
+                counter_price = filled_order["price"] * (1 + self.grid_spread)
+        else:
+            # For buy orders, we use grid spread
+            price_direction = 1 if counter_side == "sell" else -1
+            counter_price = filled_order["price"] * (1 + (price_direction * self.grid_spread))
         
         # Use the same amount as the filled order
         amount = filled_order["amount"]

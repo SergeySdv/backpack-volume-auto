@@ -16,7 +16,7 @@ class GridManager:
     
     async def start_grid_bot(self, backpack: BackpackTrade, symbol: str, 
                              grid_levels: int = 5, grid_spread: float = 0.01, 
-                             order_size: float = None) -> bool:
+                             order_size: float = None, take_profit_percentage: float = 3.0) -> bool:
         """
         Start a grid trading bot for a specific symbol
         
@@ -26,6 +26,7 @@ class GridManager:
             grid_levels: Number of grid levels to create
             grid_spread: Price difference between grid levels (percentage)
             order_size: Size of each grid order (if None, calculated from balance)
+            take_profit_percentage: Percentage profit target for take-profit orders
             
         Returns:
             bool: True if bot started successfully, False otherwise
@@ -40,7 +41,8 @@ class GridManager:
                 symbol=symbol,
                 grid_levels=grid_levels, 
                 grid_spread=grid_spread,
-                order_size=order_size
+                order_size=order_size,
+                take_profit_percentage=take_profit_percentage
             )
             
             # Store the bot instance
@@ -113,12 +115,26 @@ class GridManager:
         
         bot = self.active_bots[symbol]
         
-        return {
+        status = {
             "symbol": symbol,
             "is_running": bot.is_running,
             "grid_levels": bot.grid_levels,
             "grid_spread": bot.grid_spread,
             "order_size": bot.order_size,
             "last_price": bot.last_price,
-            "active_orders": len(bot.active_orders)
+            "active_orders": len(bot.active_orders),
+            "take_profit_percentage": bot.take_profit_percentage
         }
+        
+        # Add position information if available
+        if bot.current_position:
+            status["position"] = {
+                "entry_price": bot.current_position["entry_price"],
+                "size": bot.current_position["size"],
+                "value_usd": bot.current_position["size"] * bot.last_price if bot.last_price else None,
+                "take_profit_price": bot.get_take_profit_price()
+            }
+        else:
+            status["position"] = None
+            
+        return status

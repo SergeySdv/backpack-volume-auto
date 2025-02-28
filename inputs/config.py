@@ -21,6 +21,7 @@ GRID_TRADING_PAIRS = ["SOL_USDC"]  # Trading pairs to use for grid trading
 GRID_LEVELS = 5  # Number of grid levels to create on each side (buy/sell)
 GRID_SPREAD = 0.01  # Price difference between grid levels (1% = 0.01)
 GRID_ORDER_SIZE = None  # Size of each grid order in base asset, None for auto-calculation
+TAKE_PROFIT_PERCENTAGE = 3.0  # Take profit percentage for sell orders
 
 
 

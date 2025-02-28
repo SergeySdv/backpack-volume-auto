@@ -12,7 +12,8 @@ from termcolor import colored, cprint
 from core.utils import logger
 from inputs.config import (ACCOUNTS_FILE_PATH, PROXIES_FILE_PATH, THREADS, DELAY_BETWEEN_TRADE, DELAY_BETWEEN_DEAL,
                            ALLOWED_ASSETS, NEEDED_TRADE_VOLUME, MIN_BALANCE_TO_LEFT, TRADE_AMOUNT, CONVERT_ALL_TO_USDC,
-                           ENABLE_GRID_TRADING, GRID_TRADING_PAIRS, GRID_LEVELS, GRID_SPREAD, GRID_ORDER_SIZE)
+                           ENABLE_GRID_TRADING, GRID_TRADING_PAIRS, GRID_LEVELS, GRID_SPREAD, GRID_ORDER_SIZE, 
+                           TAKE_PROFIT_PERCENTAGE)
 
 
 def bot_info(name: str = ""):
@@ -78,7 +79,8 @@ async def run_grid_trading(backpack: BackpackTrade):
             symbol=pair,
             grid_levels=GRID_LEVELS,
             grid_spread=GRID_SPREAD,
-            order_size=GRID_ORDER_SIZE
+            order_size=GRID_ORDER_SIZE,
+            take_profit_percentage=TAKE_PROFIT_PERCENTAGE
         )
         
         if success:
