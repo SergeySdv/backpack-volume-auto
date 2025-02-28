@@ -174,22 +174,41 @@ class BotWorker:
         # For sell orders, we need base currency (e.g., SOL)
         base_balance = float(balances.get(self.base_asset, {}).get('available', 0))
         
+        logger.info(f"Available balances: {self.quote_asset}={quote_balance}, {self.base_asset}={base_balance}")
+        
         # Calculate order size based on available balance
         # Use at most 80% of available balance split across grid levels
         if quote_balance > 0:
             # Calculate in quote currency, then convert to base
-            quote_per_order = (quote_balance * 0.8) / self.grid_levels
+            quote_per_order = (quote_balance * 0.8) / (self.grid_levels * 2)  # Divide by 2 for buy/sell side
             self.order_size = quote_per_order / self.last_price
+            logger.info(f"Calculated size from quote: {quote_per_order} {self.quote_asset} -> {self.order_size} {self.base_asset}")
         elif base_balance > 0:
             # Use base currency directly
-            self.order_size = (base_balance * 0.8) / self.grid_levels
+            self.order_size = (base_balance * 0.8) / (self.grid_levels * 2)  # Divide by 2 for buy/sell side
+            logger.info(f"Calculated size from base: {self.order_size} {self.base_asset}")
         else:
             raise TradeException(f"Insufficient balance for {self.base_asset} and {self.quote_asset}")
+        
+        # Set a minimum order size based on the asset
+        min_sizes = {
+            "SOL": 0.01,
+            "BTC": 0.0001,
+            "JUP": 0.1,
+            "PRCL": 0.1,
+            "WEN": 1.0,
+            "W": 0.01
+        }
+        
+        min_size = min_sizes.get(self.base_asset.upper(), 0.01)
+        if self.order_size < min_size:
+            logger.info(f"Increasing order size from {self.order_size} to minimum {min_size} {self.base_asset}")
+            self.order_size = min_size
         
         decimal_point = BackpackTrade.ASSETS_INFO.get(self.base_asset.upper(), {}).get('decimal', 0)
         self.order_size = float(to_fixed(self.order_size, decimal_point))
         
-        logger.info(f"Calculated order size: {self.order_size} {self.base_asset}")
+        logger.info(f"Final order size: {self.order_size} {self.base_asset}")
     
     @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5), 
            retry=retry_if_exception_type(FokOrderException))
@@ -207,7 +226,19 @@ class BotWorker:
                 # For sell orders, we use the fixed amount
                 amount = self.order_size
             
+            # Check if amount is zero or too small
+            if amount <= 0:
+                logger.warning(f"Cannot place {side} order with zero or negative quantity")
+                return
+                
             amount_str = to_fixed(amount, decimal_point)
+            
+            # Double-check the formatted amount isn't zero
+            if amount_str == "0" or float(amount_str) <= 0:
+                logger.warning(f"Cannot place {side} order with zero quantity after formatting")
+                return
+                
+            logger.info(f"Placing {side} order: {amount_str} {self.base_asset} @ {price_str}")
             
             # Place limit order with GTC (Good Till Cancelled)
             response = await self.backpack.execute_order(
