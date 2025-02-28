@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from tenacity import retry, stop_after_attempt, wait_random, retry_if_exception_type
 from termcolor import colored
 
-from core.backpack_trade import BackpackTrade
+from core.backpack_trade import BackpackTrade, to_fixed
 from core.exceptions import TradeException, FokOrderException
 from core.utils import logger
 
@@ -187,7 +187,7 @@ class BotWorker:
             raise TradeException(f"Insufficient balance for {self.base_asset} and {self.quote_asset}")
         
         decimal_point = BackpackTrade.ASSETS_INFO.get(self.base_asset.upper(), {}).get('decimal', 0)
-        self.order_size = float(self.backpack.to_fixed(self.order_size, decimal_point))
+        self.order_size = float(to_fixed(self.order_size, decimal_point))
         
         logger.info(f"Calculated order size: {self.order_size} {self.base_asset}")
     
@@ -197,7 +197,7 @@ class BotWorker:
         """Place a single grid order"""
         try:
             decimal_point = BackpackTrade.ASSETS_INFO.get(self.base_asset.upper(), {}).get('decimal', 0)
-            price_str = self.backpack.to_fixed(price, decimal_point)
+            price_str = to_fixed(price, decimal_point)
             
             # Adjust amount based on side
             if side == "buy":
@@ -207,7 +207,7 @@ class BotWorker:
                 # For sell orders, we use the fixed amount
                 amount = self.order_size
             
-            amount_str = self.backpack.to_fixed(amount, decimal_point)
+            amount_str = to_fixed(amount, decimal_point)
             
             # Place limit order with GTC (Good Till Cancelled)
             response = await self.backpack.execute_order(
