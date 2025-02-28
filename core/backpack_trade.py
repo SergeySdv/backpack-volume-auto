@@ -310,6 +310,22 @@ class BackpackTrade(Backpack):
 
         logger.info(f"Finished! All balances were converted to USDC.")
 
+    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
+           before_sleep=lambda e: logger.info(f"Get order status. Retrying... | {e}"),
+           reraise=True)
+    async def get_order_status(self, symbol: str, order_id: str):
+        """Get status of a specific order"""
+        response = await self.get_order(symbol, order_id)
+        return response
+    
+    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
+           before_sleep=lambda e: logger.info(f"Cancel order. Retrying... | {e}"),
+           reraise=True)
+    async def cancel_order(self, symbol: str, order_id: str):
+        """Cancel a specific order"""
+        response = await self.cancel_order_by_id(symbol, order_id)
+        return response
+    
     @staticmethod
     async def custom_delay(delays: tuple):
         if delays[1] > 0:
