@@ -1,6 +1,6 @@
 # Backpack Trading 🔹
 
-Automated trading bot for creating volume and managing positions on the [Backpack exchange](https://backpack.exchange/refer/binance).
+Automated trading bot for creating volume and managing positions on the [Backpack exchange](https://backpack.exchange/).
 
 Discover the latest `<crypto/>` moves in my Telegram Channel:
 
@@ -95,3 +95,23 @@ To use this mode:
 4. Set your profit target with `TAKE_PROFIT_PERCENTAGE`
 
 For detailed information on grid trading, see the [Grid Trading Documentation](core/position_management/README.md).
+
+## Testing
+
+The project includes a comprehensive test suite for verifying grid trading functionality:
+
+```bash
+# Run all tests
+python run_tests.py
+
+# Run specific tests
+python run_tests.py tests/unit/test_bot_worker.py
+```
+
+The tests cover:
+- Position tracking calculations
+- Grid price calculations
+- Order management
+- Take profit logic
+- Price deviation handling
+- Multiple bot management
