@@ -485,9 +485,13 @@ class BackpackTrade(Backpack):
            reraise=True)
     async def get_order(self, symbol: str, order_id: str):
         """Get order information - alias needed for grid trading compatibility"""
-        # We need to implement the direct API call to Backpack to get order details
-        url = f"/api/v1/orders/{symbol}/{order_id}"
-        response = await self._request("GET", url)
+        # Looking at backpack-api source code, the correct endpoint is:
+        endpoint = f"/api/v1/orders/{order_id}"
+        
+        # Use the client's built-in request method - this is provided by the backpack base class
+        # The base class is imported as "from backpack import Backpack" at the top of this file
+        # We're inheriting from it, so we have access to its methods
+        response = await self.get_request(endpoint)
         return response
     
     @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
