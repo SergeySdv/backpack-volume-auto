@@ -54,6 +54,13 @@ class BotWorker:
         # Setup initial grid
         await self.setup_grid()
         
+        # Check if we have any active orders
+        if not self.active_orders:
+            logger.warning(f"No active orders could be placed. Check balances and minimum order requirements.")
+            logger.info(f"Grid trading for {self.symbol} stopped due to insufficient funds.")
+            self.is_running = False
+            return
+        
         # Monitor grid
         while self.is_running:
             try:
@@ -67,6 +74,21 @@ class BotWorker:
                 
                 # Check order status
                 await self.update_order_status()
+                
+                # If all orders are gone and we couldn't place new ones, stop the bot
+                if not self.active_orders:
+                    try:
+                        # Try to setup grid again
+                        await self.setup_grid()
+                        # If still no orders, stop the bot
+                        if not self.active_orders:
+                            logger.warning(f"No active orders remaining and unable to place new ones.")
+                            logger.info(f"Grid trading for {self.symbol} stopping due to insufficient funds.")
+                            self.is_running = False
+                            break
+                    except Exception as e:
+                        logger.error(f"Error trying to recreate grid: {e}")
+                        # Continue the loop, we'll try again later
                 
                 await asyncio.sleep(10)  # Check every 10 seconds
                 
@@ -138,13 +160,40 @@ class BotWorker:
         
         logger.info(f"Setting up grid with {len(grid_prices)} levels around {self.last_price}")
         
+        # Get balances to check funds before placing orders
+        balances = await self.backpack.get_balance()
+        quote_balance = float(balances.get(self.quote_asset, {}).get('available', 0))
+        base_balance = float(balances.get(self.base_asset, {}).get('available', 0))
+        
+        # Checking minimum requirements
+        min_order_size = 0.01  # Most assets
+        if self.base_asset.upper() == "BTC":
+            min_order_size = 0.0001
+        
+        buy_enough_funds = quote_balance >= min_order_size * self.last_price
+        sell_enough_funds = base_balance >= min_order_size
+        
+        if not buy_enough_funds and not sell_enough_funds:
+            logger.warning(f"Insufficient funds for both buy and sell orders. " +
+                          f"Need {min_order_size * self.last_price} {self.quote_asset} for buys or " +
+                          f"{min_order_size} {self.base_asset} for sells.")
+            return
+        
         # Place buy orders below current price
-        for price in grid_prices["buy"]:
-            await self._place_grid_order("buy", price)
+        if buy_enough_funds:
+            logger.info(f"Placing buy orders below {self.last_price}")
+            for price in grid_prices["buy"]:
+                await self._place_grid_order("buy", price)
+        else:
+            logger.warning(f"Skipping buy orders due to insufficient {self.quote_asset}")
         
         # Place sell orders above current price
-        for price in grid_prices["sell"]:
-            await self._place_grid_order("sell", price)
+        if sell_enough_funds:
+            logger.info(f"Placing sell orders above {self.last_price}")
+            for price in grid_prices["sell"]:
+                await self._place_grid_order("sell", price)
+        else:
+            logger.warning(f"Skipping sell orders due to insufficient {self.base_asset}")
     
     def _calculate_grid_prices(self) -> Dict[str, List[float]]:
         """Calculate grid prices based on current price and parameters"""
