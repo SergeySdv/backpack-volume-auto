@@ -51,8 +51,9 @@ async def close_all_orders(api_key, api_secret, proxy, symbol=None):
     Close all open orders for a specific account and symbol.
     If symbol is None, close orders for all pairs.
     """
+    # Initialize Backpack client
+    client = None
     try:
-        # Initialize Backpack client
         client = Backpack(
             api_key=api_key,
             api_secret=api_secret,
@@ -81,44 +82,56 @@ async def close_all_orders(api_key, api_secret, proxy, symbol=None):
                     else:
                         logger.warning(f"Failed to cancel order {order_id}: {await cancel_resp.text()}")
         else:
-            # Get all open orders
-            response = await client.get_all_open_orders()
-            resp_json = await response.json()
+            # Get open orders for each trading pair from config
+            from inputs.config import ALLOWED_ASSETS
             
-            if response.status != 200:
-                logger.error(f"Failed to get all open orders: {resp_json}")
-                return False
+            # Use allowed assets from config as default trading pairs
+            trading_pairs = ALLOWED_ASSETS
+            logger.info(f"Checking {len(trading_pairs)} trading pairs for open orders")
             
-            # Group orders by symbol
-            orders_by_symbol = {}
-            for order in resp_json:
-                order_symbol = order.get("symbol")
-                order_id = order.get("id")
-                
-                if order_symbol and order_id:
-                    if order_symbol not in orders_by_symbol:
-                        orders_by_symbol[order_symbol] = []
-                    orders_by_symbol[order_symbol].append(order_id)
-            
-            # Cancel orders for each symbol
-            for sym, order_ids in orders_by_symbol.items():
-                logger.info(f"Cancelling {len(order_ids)} orders for {sym}")
-                
-                for order_id in order_ids:
-                    cancel_resp = await client.cancel_order_by_id(sym, order_id)
+            # Process each trading pair
+            for pair in trading_pairs:
+                try:
+                    # Get open orders for this pair
+                    response = await client.get_open_orders(pair)
+                    resp_json = await response.json()
                     
-                    if cancel_resp.status == 200:
-                        logger.info(f"Successfully cancelled order {order_id} for {sym}")
-                    else:
-                        logger.warning(f"Failed to cancel order {order_id}: {await cancel_resp.text()}")
-        
-        # Close client
-        await client.close()
+                    if response.status != 200:
+                        logger.warning(f"Failed to get open orders for {pair}: {resp_json}")
+                        continue
+                    
+                    # Skip if no orders
+                    if not resp_json:
+                        continue
+                        
+                    logger.info(f"Found {len(resp_json)} open orders for {pair}")
+                    
+                    # Cancel each order
+                    for order in resp_json:
+                        order_id = order.get("id")
+                        if order_id:
+                            logger.info(f"Cancelling order {order_id} for {pair}")
+                            cancel_resp = await client.cancel_order_by_id(pair, order_id)
+                            
+                            if cancel_resp.status == 200:
+                                logger.info(f"Successfully cancelled order {order_id}")
+                            else:
+                                logger.warning(f"Failed to cancel order {order_id}: {await cancel_resp.text()}")
+                
+                except Exception as e:
+                    logger.error(f"Error processing {pair}: {e}")
         
         return True
     except Exception as e:
         logger.error(f"Error closing orders: {e}")
         return False
+    finally:
+        # Always close the client to prevent unclosed session warnings
+        if client:
+            try:
+                await client.close()
+            except Exception as e:
+                logger.error(f"Error closing client: {e}")
 
 
 async def main():
