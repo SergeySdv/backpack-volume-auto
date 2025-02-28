@@ -479,6 +479,16 @@ class BackpackTrade(Backpack):
         """Get status of a specific order"""
         response = await self.get_order(symbol, order_id)
         return response
+        
+    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
+           before_sleep=lambda e: logger.info(f"Get order. Retrying... | {e}"),
+           reraise=True)
+    async def get_order(self, symbol: str, order_id: str):
+        """Get order information - alias needed for grid trading compatibility"""
+        # We need to implement the direct API call to Backpack to get order details
+        url = f"/api/v1/orders/{symbol}/{order_id}"
+        response = await self._request("GET", url)
+        return response
     
     @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
            before_sleep=lambda e: logger.info(f"Cancel order. Retrying... | {e}"),
