@@ -195,7 +195,7 @@ class TestBotWorkerAsync:
         # Should cancel orders and set up new grid
         bot.cancel_all_orders.assert_called_once()
         bot.setup_grid.assert_called_once()
-        self.assertEqual(bot.last_price, 110.0)
+        assert bot.last_price == 110.0
         
     async def test_place_counter_order(self, bot_setup):
         """Test counter order placement logic"""
@@ -220,8 +220,8 @@ class TestBotWorkerAsync:
         # Should place sell order at take profit price (105.0)
         bot._place_grid_order.assert_called_once()
         call_args = bot._place_grid_order.call_args[0]
-        self.assertEqual(call_args[0], "sell")
-        self.assertEqual(call_args[1], 105.0)  # Take profit price
+        assert call_args[0] == "sell"
+        assert call_args[1] == 105.0  # Take profit price
         
         # Reset mock
         bot._place_grid_order.reset_mock()
@@ -238,8 +238,8 @@ class TestBotWorkerAsync:
         # Should place buy order at a lower price
         bot._place_grid_order.assert_called_once()
         call_args = bot._place_grid_order.call_args[0]
-        self.assertEqual(call_args[0], "buy")
-        self.assertAlmostEqual(call_args[1], 102.9, places=1)  # 105 * (1 - 0.02)
+        assert call_args[0] == "buy"
+        assert round(call_args[1], 1) == 102.9  # 105 * (1 - 0.02)
 
 
 if __name__ == '__main__':
