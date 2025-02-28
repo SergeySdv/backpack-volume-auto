@@ -1,6 +1,7 @@
 import asyncio
 import ctypes
 import sys
+import argparse
 
 from core.autoreger import AutoReger
 from core.backpack_trade import BackpackTrade
@@ -33,6 +34,10 @@ def bot_info(name: str = ""):
 
 
 async def worker_task(account: str, proxy: str):
+    if not account:
+        logger.error("No account credentials provided")
+        return False
+        
     api_key, api_secret = account.split(":")
 
     try:
@@ -114,9 +119,19 @@ async def run_grid_trading(backpack: BackpackTrade):
 
 
 async def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Backpack Auto Trading Bot')
+    parser.add_argument('--check-proxies', action='store_true', help='Validate proxies before starting')
+    args = parser.parse_args()
+    
     bot_info("BACKPACK_AUTO")
 
-    autoreger = AutoReger.get_accounts(ACCOUNTS_FILE_PATH, PROXIES_FILE_PATH)
+    # Initialize with optional proxy validation
+    autoreger = await AutoReger.get_accounts(
+        accounts_file=ACCOUNTS_FILE_PATH, 
+        proxies_file=PROXIES_FILE_PATH,
+        validate_proxies=args.check_proxies
+    )
     await autoreger.start(worker_task, THREADS)
 
 

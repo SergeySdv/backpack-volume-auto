@@ -1,5 +1,16 @@
 # Backpack Trading Bot - Changelog
 
+## Unreleased
+### Added
+- Proxy validation tool for checking proxy health
+- Command line option for automatic proxy validation
+- Windows batch file for running proxy checker
+- Integration of proxy validation with main bot
+- Better proxy error handling and feedback
+- Failed sell order retry system to prevent stuck positions
+- Improved error handling for trade failures
+- More robust trade cycle with better recovery mechanisms
+
 ## Feature Branch: Position Management
 
 This feature branch significantly enhances the original volume generation bot with grid trading, position management, and utility tools.

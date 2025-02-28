@@ -13,7 +13,7 @@ Discover the latest `<crypto/>` moves in my Telegram Channel:
 - Grid trading system for automated market making
 - Position management with entry tracking
 - Take profit functionality
-- Proxy support for multiple accounts
+- Proxy support with validation and health checking
 - Auto-sizing of orders based on available balance
 
 ## Quick Start 📚
@@ -22,9 +22,11 @@ Discover the latest `<crypto/>` moves in my Telegram Channel:
 3. Configure your settings in `inputs/config.py`
 4. Add your API keys to `inputs/accounts.txt`
 5. (Optional) Add proxies to `inputs/proxies.txt`
-6. To start the bot use `START.bat` (or run `python main.py`)
-7. To check account balances use `CHECK_BALANCES.bat` (or run `python check_balances.py`)
-8. To close all open orders use `CLOSE_ORDERS.bat` (or run `python close_all_orders.py`)
+6. (Optional) Validate your proxies using `CHECK_PROXIES.bat` (or run `python check_proxies.py`)
+7. To start the bot use `START.bat` (or run `python main.py`)
+   - For auto proxy validation, use `START_WITH_PROXY_CHECK.bat` (or run `python main.py --check-proxies`)
+8. To check account balances use `CHECK_BALANCES.bat` (or run `python check_balances.py`)
+9. To close all open orders use `CLOSE_ORDERS.bat` (or run `python close_all_orders.py`)
 
 ## Configuration Guide 📧
 
@@ -68,6 +70,8 @@ TAKE_PROFIT_PERCENTAGE = 3.0  # Take profit target for sell orders
 2. (Optional) Proxy Setup 🌐
    - Add your proxies to `inputs/proxies.txt`
    - Supports any format (socks, http/s, etc.)
+   - Validate your proxies with the proxy checker tool
+   - Run `CHECK_PROXIES.bat` or `python check_proxies.py` to test proxy health
    
    ![Proxy Configuration](https://github.com/MsLolita/VeloData/assets/58307006/a2c95484-52b6-497a-b89e-73b89d953d8c)
 
@@ -113,6 +117,35 @@ Recent updates to the project have added significant new capabilities:
 
 ### 2. Utility Scripts
 The project now includes several utility scripts to help manage your trading:
+
+### Proxy Validation
+
+To check if your proxies are working correctly:
+
+```bash
+python check_proxies.py
+```
+
+On Windows, you can use the `CHECK_PROXIES.bat` file:
+```
+CHECK_PROXIES.bat
+```
+
+This will:
+- Test every proxy in your proxies.txt file against the Backpack API
+- Show response times for working proxies
+- Provide detailed error information for failed proxies
+- Option to update your proxies.txt file with only working proxies
+
+You can also run the main bot with automatic proxy validation:
+```bash
+python main.py --check-proxies
+```
+
+Or on Windows:
+```
+START_WITH_PROXY_CHECK.bat
+```
 
 ### Balance Checking
 

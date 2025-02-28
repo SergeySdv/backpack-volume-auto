@@ -4,6 +4,7 @@ from asyncio import Semaphore, sleep, create_task, wait
 from itertools import zip_longest
 
 from core.utils import logger, file_to_list, str_to_file
+from core.utils.proxy_checker import ProxyChecker
 
 
 class AutoReger:
@@ -15,8 +16,32 @@ class AutoReger:
         self.delay = None
 
     @classmethod
-    def get_accounts(cls, *file_names: str):
-        consumables = [file_to_list(file_name) for file_name in file_names]
+    async def get_accounts(cls, accounts_file: str, proxies_file: str, validate_proxies: bool = False):
+        """
+        Load accounts and proxies, optionally validating proxies
+        
+        Args:
+            accounts_file: Path to file containing accounts
+            proxies_file: Path to file containing proxies
+            validate_proxies: Whether to validate proxies before using them
+            
+        Returns:
+            AutoReger instance configured with accounts and proxies
+        """
+        accounts = file_to_list(accounts_file)
+        
+        # Handle proxies
+        if validate_proxies:
+            logger.info("Validating proxies before starting...")
+            working_proxies, _ = await ProxyChecker.validate_proxies_from_file(proxies_file)
+            proxies = working_proxies
+            if not proxies:
+                logger.warning("No working proxies found. Continuing without proxies.")
+        else:
+            # Just load proxies without validation
+            proxies = file_to_list(proxies_file)
+            
+        consumables = [accounts, proxies]
         return cls(list(zip_longest(*consumables)))
 
     async def start(self, worker_func: callable, threads: int = 1, delay: tuple = (0, 0)):

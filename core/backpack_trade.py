@@ -98,15 +98,80 @@ class BackpackTrade(Backpack):
 
     async def start_trading(self, pairs: list[str]):
         try:
+            # Track failed sells to retry them
+            failed_sells = []
+            
             while True:
+                # First check if we have failed sells to retry
+                if failed_sells:
+                    # Try to sell any failed positions before continuing
+                    logger.info(f"Attempting to retry {len(failed_sells)} failed sell orders")
+                    
+                    # Copy the list to avoid modifying during iteration
+                    sells_to_retry = failed_sells.copy()
+                    failed_sells.clear()
+                    
+                    for pair_to_retry in sells_to_retry:
+                        try:
+                            logger.info(f"Retrying sell for {pair_to_retry}")
+                            await self.custom_delay(delays=self.trade_delay)
+                            
+                            # Attempt to sell again
+                            sell_result = await self.sell(pair_to_retry, use_retry_parameters=True)
+                            
+                            if not sell_result:
+                                # If still failed, add back to the queue
+                                logger.warning(f"Sell retry failed for {pair_to_retry}, will try again later")
+                                failed_sells.append(pair_to_retry)
+                            else:
+                                logger.success(f"Successfully sold {pair_to_retry} after retry")
+                                
+                        except Exception as e:
+                            logger.error(f"Error retrying sell for {pair_to_retry}: {e}")
+                            failed_sells.append(pair_to_retry)
+                
+                # Regular trading cycle
                 pair = random.choice(pairs)
-                if await self.trade_worker(pair):
+                
+                try:
+                    # Attempt normal trade cycle
+                    buy_success = await self.trade_worker(pair)
+                    
+                    # If buy was successful but sell failed, add to retry list
+                    if isinstance(buy_success, dict) and buy_success.get("sell_failed"):
+                        logger.warning(f"Adding {pair} to sell retry queue after failed sell")
+                        failed_sells.append(pair)
+                    
+                    # Check if we should exit
+                    if buy_success is True:  # Only exit if explicit True is returned
+                        break
+                        
+                except TradeException as e:
+                    logger.warning(f"Trade exception during regular cycle: {e}")
+                except Exception as e:
+                    logger.error(f"Error in trade cycle: {e}")
+                    logger.debug(f"{e} {traceback.format_exc()}")
+                    
+                # Exit early if volume target reached
+                if self.needed_volume and self.current_volume > self.needed_volume:
                     break
+                
         except TradeException as e:
             logger.warning(e)
         except Exception as e:
             logger.error(f"{e} / Check logs in logs/out.log")
             logger.debug(f"{e} {traceback.format_exc()}")
+
+        # Final attempt to sell any remaining failed positions
+        if failed_sells:
+            logger.info(f"Final attempt to sell {len(failed_sells)} remaining positions")
+            for pair_to_retry in failed_sells:
+                try:
+                    logger.info(f"Final sell attempt for {pair_to_retry}")
+                    await self.custom_delay(delays=self.trade_delay)
+                    await self.sell(pair_to_retry, use_retry_parameters=True)
+                except Exception as e:
+                    logger.error(f"Final sell attempt failed for {pair_to_retry}: {e}")
 
         logger.info(f"Finished! Traded volume ~ {self.current_volume:.2f}$")
 
@@ -114,15 +179,33 @@ class BackpackTrade(Backpack):
         print()
 
         await self.custom_delay(delays=self.trade_delay)
-        await self.buy(pair)
+        
+        # Attempt to buy
+        try:
+            await self.buy(pair)
+        except Exception as e:
+            logger.error(f"Buy failed for {pair}: {e}")
+            return False
 
         await self.custom_delay(delays=self.trade_delay)
-        await self.sell(pair)
+        
+        # Attempt to sell
+        try:
+            sell_result = await self.sell(pair)
+            if not sell_result:
+                # Return a dict to indicate buy succeeded but sell failed
+                return {"sell_failed": True, "pair": pair}
+        except Exception as e:
+            logger.error(f"Sell failed for {pair}: {e}")
+            # Return a dict to indicate buy succeeded but sell failed
+            return {"sell_failed": True, "pair": pair}
 
         await self.custom_delay(self.deal_delay)
 
         if self.needed_volume and self.current_volume > self.needed_volume:
             return True
+            
+        return False
 
     @retry(stop=stop_after_attempt(10), wait=wait_random(5, 7), reraise=True,
            retry=retry_if_exception_type(FokOrderException))
@@ -137,12 +220,46 @@ class BackpackTrade(Backpack):
 
     @retry(stop=stop_after_attempt(10), wait=wait_random(5, 7), reraise=True,
            retry=retry_if_exception_type(FokOrderException))
-    async def sell(self, symbol: str, use_global_options: bool = True):
+    async def sell(self, symbol: str, use_global_options: bool = True, use_retry_parameters: bool = False):
         side = 'sell'
         token = symbol.split('_')[0]
-        price, amount = await self.get_trade_info(symbol, side, token, use_global_options)
-
-        return await self.trade(symbol, amount, side, price)
+        
+        try:
+            # For retry attempts, use different parameters to increase success chance
+            if use_retry_parameters:
+                logger.info(f"Using adjusted parameters for sell retry on {symbol}")
+                
+                # Get current price
+                current_price = await self.get_market_price(symbol, side, 1)
+                
+                # Use simpler parameters for retry - just sell what we have at current price
+                balances = await self.get_balance()
+                token_balance = balances.get(token, {}).get('available', '0')
+                
+                if float(token_balance) <= 0:
+                    logger.warning(f"No {token} balance available for retry sell")
+                    return False
+                
+                decimal_point = BackpackTrade.ASSETS_INFO.get(token.upper(), {}).get('decimal', 0)
+                amount = to_fixed(token_balance, decimal_point)
+                
+                # Calculate approximate USD value for logging
+                amount_usd = float(token_balance) * float(current_price)
+                logger.info(f"Retry selling {amount} {token} (approx. {amount_usd:.2f}$)")
+                
+                return await self.trade(symbol, amount, side, current_price)
+            else:
+                # Normal sell process
+                price, amount = await self.get_trade_info(symbol, side, token, use_global_options)
+                return await self.trade(symbol, amount, side, price)
+                
+        except TradeException as e:
+            logger.warning(f"Sell operation failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error in sell operation: {e}")
+            logger.debug(traceback.format_exc())
+            return False
 
     @retry(stop=stop_after_attempt(7), wait=wait_random(2, 5),
            before_sleep=lambda e: logger.info(f"Get Balance. Retrying... | {e}"),
@@ -222,8 +339,15 @@ class BackpackTrade(Backpack):
 
         logger.bind(end="").debug(f"Side: {side} | Price: {price} | Amount: {readable_amount}")
 
+        # For retry sell attempts, try GTC (Good Till Canceled) instead of FOK
+        if side == "sell" and hasattr(self, "_is_retry_attempt") and self._is_retry_attempt:
+            time_in_force = "GTC"
+            logger.info(f"Using GTC order type for retry sell")
+        else:
+            time_in_force = "FOK"  # Use FOK for regular orders
+
         response = await self.execute_order(symbol, side, order_type="limit", quantity=readable_amount, price=price,
-                                            time_in_force="FOK")
+                                            time_in_force=time_in_force)
 
         resp_text = await response.text()
 
@@ -234,21 +358,34 @@ class BackpackTrade(Backpack):
             raise FokOrderException(resp_text)
 
         if response.status != 200:
-            logger.info(f"Failed to trade! Check logs for more info. Response: {await response.text()}")
+            logger.info(f"Failed to trade! Check logs for more info. Response: {resp_text}")
+            return False
 
         result = await response.json()
 
         if result.get("createdAt"):
-            self.current_volume += self.amount_usd
+            # Calculate amount in USD for tracking
+            try:
+                # If we already have self.amount_usd set, use it
+                if hasattr(self, "amount_usd") and self.amount_usd > 0:
+                    amount_usd = self.amount_usd
+                else:
+                    # Calculate approximate USD value
+                    amount_usd = float(readable_amount) * float(price)
+                
+                self.current_volume += amount_usd
 
-            decorated_side = colored(f'X {side.capitalize()}', 'green' if side == 'buy' else 'red')
+                decorated_side = colored(f'X {side.capitalize()}', 'green' if side == 'buy' else 'red')
 
-            logger.info(f"{decorated_side} {readable_amount} {symbol} ({to_fixed(self.amount_usd, 2)}$). "
-                        f"Traded volume: {self.current_volume:.2f}$")
-
+                logger.info(f"{decorated_side} {readable_amount} {symbol} ({to_fixed(amount_usd, 2)}$). "
+                            f"Traded volume: {self.current_volume:.2f}$")
+            except Exception as e:
+                logger.error(f"Error calculating trade volume: {e}")
+                # Still return True since the order executed successfully
+                
             return True
 
-        raise TradeException(f"Failed to trade! Check logs for more info. Response: {await response.text()}")
+        raise TradeException(f"Failed to trade! Check logs for more info. Response: {resp_text}")
 
     @retry(stop=stop_after_attempt(5), before_sleep=
            lambda e: logger.info(f"Get market price. Retrying... | {e.outcome}"),
@@ -292,23 +429,48 @@ class BackpackTrade(Backpack):
 
     async def sell_all(self):
         balances = await self.get_balance()
+        failed_sells = []
 
+        logger.info("Converting all balances to USDC...")
+        
+        # First attempt to sell everything
         for symbol in balances.keys():
             if symbol.startswith('USDC'):
                 continue
-            # if symbol != 'PYTH':
-            #     continue
-            # if symbol != 'SOL' and float(balances[symbol]['available']) < 0.5:
-            #     continue
-            # elif symbol == 'SOL' and float(balances[symbol]['available']) < 0.01:
-            #     continue
-
+                
+            # Skip tokens with zero balance
+            available = float(balances[symbol]['available'])
+            if available <= 0:
+                continue
+                
+            # Display token balance before selling
+            logger.info(f"Selling {available} {symbol}")
+                
             try:
-                await self.sell(f"{symbol}_USDC", use_global_options=False)
-            except TradeException:
-                pass
-
-        logger.info(f"Finished! All balances were converted to USDC.")
+                result = await self.sell(f"{symbol}_USDC", use_global_options=False)
+                if not result:
+                    logger.warning(f"Failed to sell {symbol}, will retry")
+                    failed_sells.append(symbol)
+            except Exception as e:
+                logger.error(f"Error selling {symbol}: {e}")
+                failed_sells.append(symbol)
+        
+        # If we have failed sells, try again with retry parameters
+        if failed_sells:
+            logger.info(f"Retrying {len(failed_sells)} failed conversions...")
+            
+            for symbol in failed_sells:
+                logger.info(f"Final attempt to sell {symbol}")
+                try:
+                    await self.sell(f"{symbol}_USDC", use_global_options=False, use_retry_parameters=True)
+                except Exception as e:
+                    logger.error(f"Could not convert {symbol} to USDC: {e}")
+        
+        # Show final balances
+        final_balances = await self.get_balance()
+        usdc_balance = float(final_balances.get('USDC', {}).get('available', 0))
+        
+        logger.info(f"Conversion complete! Final USDC balance: {usdc_balance:.2f} USDC")
 
     @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
            before_sleep=lambda e: logger.info(f"Get order status. Retrying... | {e}"),

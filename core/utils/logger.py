@@ -16,7 +16,9 @@ def logging_setup():
     file_path = r"logs/"
 
     logger.remove()
-
+    
+    # SUCCESS level is already defined in loguru, so we don't need to create it
+    
     logger.add(file_path + "out.log", colorize=True,
                format=lambda record: formatter(record, clean_brackets(format_error)))
 
