@@ -392,13 +392,25 @@ class BackpackTrade(Backpack):
            retry=retry_if_not_exception_type(TradeException),
            wait=wait_random(2, 5), reraise=True)
     async def get_market_price(self, symbol: str, side: str, depth: int = 1):
+        from inputs.config import MARKET_PRICE_ADJUSTMENT
+        
         response = await self.get_order_book_depth(symbol)
         orderbook = await response.json()
 
         if len(orderbook['asks']) < depth or len(orderbook['bids']) < depth:
             raise TradeException(f"Orderbook is empty! Check logs for more info. Response: {await response.text()}")
 
-        return orderbook['asks'][depth][0] if side == 'buy' else orderbook['bids'][-depth][0]
+        # Get base price from orderbook
+        base_price = orderbook['asks'][depth][0] if side == 'buy' else orderbook['bids'][-depth][0]
+        
+        # Apply price adjustment from config if set
+        if MARKET_PRICE_ADJUSTMENT != 0:
+            adjustment_factor = 1 + MARKET_PRICE_ADJUSTMENT
+            adjusted_price = str(round(float(base_price) * adjustment_factor, 8))
+            logger.debug(f"Adjusting {side} price from {base_price} to {adjusted_price} ({MARKET_PRICE_ADJUSTMENT:+.2%})")
+            return adjusted_price
+        
+        return base_price
 
     async def show_balances(self):
         balances = await self.get_balance()

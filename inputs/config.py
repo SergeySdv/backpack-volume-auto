@@ -1,4 +1,4 @@
-CONVERT_ALL_TO_USDC = False  # convert all balances to USDC only
+CONVERT_ALL_TO_USDC = True  # convert all balances to USDC only
 
 THREADS = 1  # Enter amount of threads
 DELAY_BETWEEN_TRADE = (1, 2)  # Execute delay between every trade (Buy -> Delay -> Sell -> Buy -> Delay ...)
@@ -23,7 +23,8 @@ GRID_SPREAD = 0.01  # Price difference between grid levels (1% = 0.01)
 GRID_ORDER_SIZE = None  # Size of each grid order in base asset, None for auto-calculation
 TAKE_PROFIT_PERCENTAGE = 3.0  # Take profit percentage for sell orders
 
-
+# Market Order Price Adjustment
+MARKET_PRICE_ADJUSTMENT = 0.0  # Percentage adjustment from market price (-0.01 = 1% lower, 0.01 = 1% higher)
 
 
 

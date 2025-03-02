@@ -47,6 +47,7 @@ NEEDED_TRADE_VOLUME = 0  # Target trading volume in USD (0 = unlimited)
 MIN_BALANCE_TO_LEFT = 0  # Minimum balance to maintain (in USD)
 TRADE_AMOUNT = [0, 0]  # Min and max amount per trade in USD (0 = use full balance)
 ALLOWED_ASSETS = ["SOL_USDC", "PYTH_USDC", ...]  # Trading pairs to use
+MARKET_PRICE_ADJUSTMENT = 0.0  # Price adjustment: -0.01 = 1% lower, +0.01 = 1% higher
 ```
 
 ### Position Management & Grid Trading
@@ -223,7 +224,12 @@ This project has evolved from a simple volume generation bot to a comprehensive 
    - Better logging with detailed information
    - Proper session management and cleanup
 
-4. **Testing Framework**
+4. **Order Price Control**
+   - Adjustable market price orders (higher or lower than market)
+   - Percentage-based price adjustments
+   - Independent control for all trading operations
+
+5. **Testing Framework**
    - Unit tests for core components
    - Async tests for network operations
    - Easy test runner script
