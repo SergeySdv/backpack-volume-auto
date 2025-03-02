@@ -1,5 +1,13 @@
 # Backpack Trading Bot - Changelog
 
+## v1.3.0 (2025-03-03)
+### Added
+- Auto-buy trigger when asset value is less than $5
+- Skips actual sell operations for small balances to improve efficiency
+- Assumes assets have been sold when value is negligible
+- Enhanced recovery from dust balance situations
+- Unit tests for small balance detection feature
+
 ## v1.2.0 (2025-03-02)
 ### Added
 - Market price adjustment feature to control order pricing

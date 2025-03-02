@@ -186,6 +186,83 @@ class TestBackpackTradeAsync:
         
         assert "Orderbook is empty" in str(excinfo.value)
 
+    async def test_sell_with_small_balance(self, trade_setup):
+        """Test sell method with balance less than $5"""
+        trade, mock_response = trade_setup
+        
+        # Mock get_market_price to return a known price
+        trade.get_market_price = AsyncMock(return_value='10.0')
+        
+        # Mock get_balance to return a small balance (less than $5 when multiplied by price)
+        mock_balance_response = {
+            'SOL': {'available': '0.4'}  # 0.4 * 10 = $4 (less than $5)
+        }
+        trade.get_balance = AsyncMock(return_value=mock_balance_response)
+        
+        # Mock get_trade_info to return price and amount directly
+        trade.get_trade_info = AsyncMock(return_value=('10.0', '0.4'))
+        
+        # Mock trade method
+        trade.trade = AsyncMock()
+        
+        # Call sell method
+        result = await trade.sell('SOL_USDC')
+        
+        # Check that the function returns True (considering it sold) without calling trade
+        assert result is True
+        
+        # Verify that trade.trade wasn't called
+        assert not trade.trade.called
+        
+    async def test_sell_retry_with_small_balance(self, trade_setup):
+        """Test sell method with retry parameters and balance less than $5"""
+        trade, mock_response = trade_setup
+        
+        # Mock get_market_price to return a known price
+        trade.get_market_price = AsyncMock(return_value='10.0')
+        
+        # Mock get_balance to return a small balance (less than $5 when multiplied by price)
+        mock_balance_response = {
+            'SOL': {'available': '0.4'}  # 0.4 * 10 = $4 (less than $5)
+        }
+        trade.get_balance = AsyncMock(return_value=mock_balance_response)
+        
+        # Mock trade method
+        trade.trade = AsyncMock()
+        
+        # Mock to_fixed function
+        with patch('core.backpack_trade.to_fixed', return_value='0.4'):
+            # Call sell method with retry parameters
+            result = await trade.sell('SOL_USDC', use_retry_parameters=True)
+            
+        # Check that the function returns True (considering it sold) without calling trade
+        assert result is True
+        
+        # Verify that trade.trade wasn't called
+        assert not trade.trade.called
+        
+    async def test_sell_with_normal_balance(self, trade_setup):
+        """Test sell method with normal balance (more than $5)"""
+        trade, mock_response = trade_setup
+        
+        # Mock get_market_price to return a known price
+        trade.get_market_price = AsyncMock(return_value='10.0')
+        
+        # Mock get_trade_info to return price and amount directly
+        trade.get_trade_info = AsyncMock(return_value=('10.0', '1.0'))  # 1.0 * 10 = $10 (more than $5)
+        
+        # Mock trade method to return True
+        trade.trade = AsyncMock(return_value=True)
+        
+        # Call sell method
+        result = await trade.sell('SOL_USDC')
+        
+        # Check that the function returns the result of trade
+        assert result is True
+        
+        # Verify that trade.trade was called with correct parameters
+        trade.trade.assert_called_once_with('SOL_USDC', '1.0', 'sell', '10.0')
+
 
 if __name__ == '__main__':
     unittest.main()

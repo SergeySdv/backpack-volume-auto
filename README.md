@@ -15,6 +15,7 @@ Discover the latest `<crypto/>` moves in my Telegram Channel:
 - Take profit functionality
 - Proxy support with validation and health checking
 - Auto-sizing of orders based on available balance
+- Smart handling of small balances (less than $5)
 
 ## Quick Start 📚
 1. Clone this repository to your local machine
@@ -124,7 +125,8 @@ git checkout v1.2.0  # Replace with the version you want
 ```
 
 ### Available Versions
-- **v1.2.0**: Latest version with market price adjustment feature
+- **v1.3.0**: Latest version with small balance auto-buy feature
+- **v1.2.0**: Version with market price adjustment feature
 - Check CHANGELOG.md for detailed version information
 
 ### How to Get Back to Latest Version
@@ -242,6 +244,7 @@ This project has evolved from a simple volume generation bot to a comprehensive 
    - Take profit functionality based on entry price
    - Dynamic grid adjustment for changing market conditions
    - Smart order placement with minimum size enforcement
+   - Auto-detection of small balances with buy trigger
 
 2. **Utility Tools**
    - Balance checker for monitoring assets across accounts

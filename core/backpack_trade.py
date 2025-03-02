@@ -247,10 +247,26 @@ class BackpackTrade(Backpack):
                 amount_usd = float(token_balance) * float(current_price)
                 logger.info(f"Retry selling {amount} {token} (approx. {amount_usd:.2f}$)")
                 
+                # Check if asset value is less than $5, assume it's essentially sold
+                if amount_usd < 5:
+                    logger.info(f"{token} value is less than $5 (${amount_usd:.2f}), considering it sold and triggering buy")
+                    # Return True to indicate successful "sell" and let the trade cycle continue to the buy phase
+                    return True
+                
                 return await self.trade(symbol, amount, side, current_price)
             else:
                 # Normal sell process
                 price, amount = await self.get_trade_info(symbol, side, token, use_global_options)
+                
+                # Calculate approximate USD value
+                amount_usd = float(amount) * float(price)
+                
+                # Check if asset value is less than $5, assume it's essentially sold
+                if amount_usd < 5:
+                    logger.info(f"{token} value is less than $5 (${amount_usd:.2f}), considering it sold and triggering buy")
+                    # Return True to indicate successful "sell" and let the trade cycle continue to the buy phase
+                    return True
+                
                 return await self.trade(symbol, amount, side, price)
                 
         except TradeException as e:
