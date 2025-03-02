@@ -103,6 +103,35 @@ To use this mode:
 
 For detailed information on grid trading, see the [Grid Trading Documentation](core/position_management/README.md).
 
+## Version Management and Releases
+
+This project uses git tags to mark specific versions. If you're not familiar with coding but want to use a specific version:
+
+### How to Check the Current Version
+```bash
+# On Windows
+git describe --tags
+
+# On Mac/Linux
+git describe --tags
+```
+
+### How to Switch to a Specific Version
+```bash
+# First, save any changes you've made to config files
+# Then run:
+git checkout v1.2.0  # Replace with the version you want
+```
+
+### Available Versions
+- **v1.2.0**: Latest version with market price adjustment feature
+- Check CHANGELOG.md for detailed version information
+
+### How to Get Back to Latest Version
+```bash
+git checkout master
+```
+
 ## New Features Summary
 
 Recent updates to the project have added significant new capabilities:
