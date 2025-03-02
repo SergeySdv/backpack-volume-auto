@@ -1,6 +1,15 @@
 # Backpack Trading Bot - Changelog
 
-## Unreleased
+## v1.2.0 (2025-03-02)
+### Added
+- Market price adjustment feature to control order pricing
+- New `MARKET_PRICE_ADJUSTMENT` configuration option
+- Support for placing orders higher or lower than market price
+- Percentage-based price adjustments with configurable values
+- Comprehensive unit tests for market price adjustment feature
+- Updated documentation with examples
+
+## v1.1.0 (Unreleased)
 ### Added
 - Proxy validation tool for checking proxy health
 - Command line option for automatic proxy validation
