@@ -264,5 +264,87 @@ class TestBackpackTradeAsync:
         trade.trade.assert_called_once_with('SOL_USDC', '1.0', 'sell', '10.0')
 
 
+    async def test_trade_worker_with_small_balance(self, trade_setup):
+        """Test trade_worker skips sell phase for small balances"""
+        trade, mock_response = trade_setup
+        
+        # Mock custom_delay to avoid delays
+        trade.custom_delay = AsyncMock()
+        
+        # Mock get_balance to return a small balance (less than $5)
+        mock_balance_response = {
+            'SOL': {'available': '0.3'},  # Small balance
+            'USDC': {'available': '100.0'}  # Good USDC balance for buying
+        }
+        trade.get_balance = AsyncMock(return_value=mock_balance_response)
+        
+        # Mock get_market_price to return a price that makes SOL value < $5
+        trade.get_market_price = AsyncMock(return_value='10.0')  # 0.3 * 10 = $3 (less than $5)
+        
+        # Mock buy method
+        trade.buy = AsyncMock()
+        
+        # Mock sell method - we'll assert this is NOT called
+        trade.sell = AsyncMock()
+        
+        # Call trade_worker
+        result = await trade.trade_worker('SOL_USDC')
+        
+        # Verify buy was called but sell was NOT called
+        trade.buy.assert_called_once()
+        assert not trade.sell.called
+        
+        # Check debug logs (optional)
+        # You could mock logger here to check it was called with the right message
+        
+    async def test_trade_worker_with_normal_balance(self, trade_setup):
+        """Test trade_worker does normal sell-buy cycle for normal balances"""
+        trade, mock_response = trade_setup
+        
+        # Mock custom_delay to avoid delays
+        trade.custom_delay = AsyncMock()
+        
+        # Mock get_balance to return a normal balance (more than $5)
+        mock_balance_response = {
+            'SOL': {'available': '1.0'},  # Normal balance
+            'USDC': {'available': '100.0'}  # Good USDC balance for buying
+        }
+        trade.get_balance = AsyncMock(return_value=mock_balance_response)
+        
+        # Mock get_market_price to return a price that makes SOL value > $5
+        trade.get_market_price = AsyncMock(return_value='10.0')  # 1.0 * 10 = $10 (more than $5)
+        
+        # Mock buy and sell methods to both succeed
+        trade.buy = AsyncMock()
+        trade.sell = AsyncMock(return_value=True)
+        
+        # Call trade_worker
+        result = await trade.trade_worker('SOL_USDC')
+        
+        # Verify both buy and sell were called
+        trade.sell.assert_called_once()
+        trade.buy.assert_called_once()
+        
+    async def test_price_decimal_error_handling(self, trade_setup):
+        """Test that price decimal errors are properly handled in trade method"""
+        trade, mock_response = trade_setup
+        
+        # Setup for the trade method test
+        from core.exceptions import FokOrderException
+        
+        # Mock execute_order to simulate a decimal error response
+        mock_response.status = 400
+        mock_response.text = AsyncMock(return_value='{"code": "INVALID_CLIENT_REQUEST", "message": "Price decimal too long"}')
+        
+        # Mock the execute_order method on the trade instance
+        trade.execute_order = AsyncMock(return_value=mock_response)
+        
+        # Call the trade method and verify it raises the right exception
+        with pytest.raises(FokOrderException) as excinfo:
+            await trade.trade('SOL_USDC', '1.0', 'buy', '123.456789012345')  # Overly precise price
+            
+        # Verify the exception message
+        assert "Price decimal error" in str(excinfo.value)
+
 if __name__ == '__main__':
     unittest.main()
