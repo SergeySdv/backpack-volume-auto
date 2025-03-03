@@ -183,25 +183,47 @@ class BackpackTrade(Backpack):
 
         await self.custom_delay(delays=self.trade_delay)
         
+        # Check for small balance first - process only token part of pair (SOL_USDC → SOL)
+        token = pair.split('_')[0]
+        balances = await self.get_balance()
+        token_balance = balances.get(token, {}).get('available', '0')
+        
+        # If we have a balance of the token and it's very small, skip the sell and go straight to buy
+        if float(token_balance) > 0:
+            # Get current price to estimate USD value
+            try:
+                current_price = await self.get_market_price(pair, 'sell', 1)
+                amount_usd = float(token_balance) * float(current_price)
+                
+                # If small balance detected, skip the sell phase
+                if amount_usd < 5:
+                    logger.info(f"Small balance of {token} detected (${amount_usd:.2f}), skipping sell and going directly to buy")
+                    # Continue directly to buy phase
+                else:
+                    # Normal flow - attempt to sell existing balance first
+                    logger.debug(f"Normal balance of {token} detected (${amount_usd:.2f}), selling first")
+                    
+                    # Attempt to sell
+                    try:
+                        sell_result = await self.sell(pair)
+                        if not sell_result:
+                            # Return a dict to indicate buy succeeded but sell failed
+                            return {"sell_failed": True, "pair": pair}
+                    except Exception as e:
+                        logger.error(f"Sell failed for {pair}: {e}")
+                        # Return a dict to indicate buy succeeded but sell failed
+                        return {"sell_failed": True, "pair": pair}
+                    
+                    await self.custom_delay(delays=self.trade_delay)
+            except Exception as e:
+                logger.error(f"Error checking token balance for {token}: {e}")
+        
         # Attempt to buy
         try:
             await self.buy(pair)
         except Exception as e:
             logger.error(f"Buy failed for {pair}: {e}")
             return False
-
-        await self.custom_delay(delays=self.trade_delay)
-        
-        # Attempt to sell
-        try:
-            sell_result = await self.sell(pair)
-            if not sell_result:
-                # Return a dict to indicate buy succeeded but sell failed
-                return {"sell_failed": True, "pair": pair}
-        except Exception as e:
-            logger.error(f"Sell failed for {pair}: {e}")
-            # Return a dict to indicate buy succeeded but sell failed
-            return {"sell_failed": True, "pair": pair}
 
         await self.custom_delay(self.deal_delay)
 
@@ -377,9 +399,16 @@ class BackpackTrade(Backpack):
 
         logger.opt(raw=True).debug(f" | Response: {resp_text} \n")
 
-        if resp_text == "Fill or kill order would not complete fill immediately":
+        # Handle common order errors
+        if resp_text == "Fill or kill order would not complete fill immediately" or "Fill or kill order" in resp_text:
             logger.info(f"Order can't be executed. Re-creating order")
             raise FokOrderException(resp_text)
+        
+        # Handle price decimal error
+        if "decimal too long" in resp_text or "INVALID_CLIENT_REQUEST" in resp_text:
+            # Truncate the price to be shorter
+            logger.info(f"Price decimal issue detected: {resp_text}")
+            raise FokOrderException("Price decimal error")
 
         if response.status != 200:
             logger.info(f"Failed to trade! Check logs for more info. Response: {resp_text}")
@@ -430,11 +459,12 @@ class BackpackTrade(Backpack):
         # Apply price adjustment from config if set
         if MARKET_PRICE_ADJUSTMENT != 0:
             adjustment_factor = 1 + MARKET_PRICE_ADJUSTMENT
-            adjusted_price = str(round(float(base_price) * adjustment_factor, 8))
+            adjusted_price = str(round(float(base_price) * adjustment_factor, 6))  # Limit to 6 decimal places
             logger.debug(f"Adjusting {side} price from {base_price} to {adjusted_price} ({MARKET_PRICE_ADJUSTMENT:+.2%})")
             return adjusted_price
         
-        return base_price
+        # Ensure price is not too long (max 8 decimal places)
+        return str(round(float(base_price), 6))
 
     async def show_balances(self):
         balances = await self.get_balance()
