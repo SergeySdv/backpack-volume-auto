@@ -4,6 +4,14 @@ THREADS = 1  # Enter amount of threads
 DELAY_BETWEEN_TRADE = (1, 2)  # Execute delay between every trade (Buy -> Delay -> Sell -> Buy -> Delay ...)
 DELAY_BETWEEN_DEAL = (0, 0)  # Execute delay between full trade (Buy -> Sell -> Delay -> Buy -> Sell -> Delay ...)
 
+# Retry Configuration
+MAX_BUY_RETRIES = 10  # Number of retry attempts for buy operations
+MAX_SELL_RETRIES = 10  # Number of retry attempts for sell operations
+MAX_BALANCE_RETRIES = 7  # Number of retry attempts for balance operations
+MAX_MARKET_PRICE_RETRIES = 5  # Number of retry attempts for market price operations
+RETRY_DELAY_MIN = 2  # Minimum delay between retries (seconds)
+RETRY_DELAY_MAX = 7  # Maximum delay between retries (seconds)
+
 NEEDED_TRADE_VOLUME = 0  # volume to trade, if 0 it will never stop
 MIN_BALANCE_TO_LEFT = 0  # min amount to left on the balance, if 0, it is traded until the balance is equal to 0.
 

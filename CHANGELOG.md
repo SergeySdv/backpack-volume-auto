@@ -1,5 +1,16 @@
 # Backpack Trading Bot - Changelog
 
+## v1.4.0 (2025-03-04)
+### Added
+- Configurable retry parameters in config.py
+- New configuration options for retry attempts and delay times
+- MAX_BUY_RETRIES, MAX_SELL_RETRIES, MAX_BALANCE_RETRIES settings
+- MAX_MARKET_PRICE_RETRIES setting for API calls
+- RETRY_DELAY_MIN and RETRY_DELAY_MAX for customizing retry wait times
+- Unit tests for retry configuration validation
+- Updated documentation for retry configuration
+- Enhanced stability for intermittent connection issues
+
 ## v1.3.0 (2025-03-03)
 ### Added
 - Auto-buy trigger when asset value is less than $5

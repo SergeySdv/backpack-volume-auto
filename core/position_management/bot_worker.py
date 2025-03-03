@@ -10,6 +10,7 @@ from termcolor import colored
 from core.backpack_trade import BackpackTrade, to_fixed
 from core.exceptions import TradeException, FokOrderException
 from core.utils import logger
+from inputs.config import MAX_BALANCE_RETRIES, RETRY_DELAY_MIN, RETRY_DELAY_MAX
 
 
 class BotWorker:
@@ -125,7 +126,8 @@ class BotWorker:
             self.last_price = current_price
             await self.setup_grid()
     
-    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5), 
+    @retry(stop=stop_after_attempt(MAX_BALANCE_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX), 
            retry=retry_if_exception_type(FokOrderException))
     async def cancel_all_orders(self):
         """Cancels all unfilled grid orders"""
@@ -259,7 +261,8 @@ class BotWorker:
         
         logger.info(f"Final order size: {self.order_size} {self.base_asset}")
     
-    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5), 
+    @retry(stop=stop_after_attempt(MAX_BALANCE_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX), 
            retry=retry_if_exception_type(FokOrderException))
     async def _place_grid_order(self, side: str, price: float):
         """Place a single grid order"""

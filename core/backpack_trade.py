@@ -13,7 +13,10 @@ from backpack import Backpack
 from better_proxy import Proxy
 from termcolor import colored
 
-from inputs.config import DEPTH
+from inputs.config import (
+    DEPTH, MAX_BUY_RETRIES, MAX_SELL_RETRIES, MAX_BALANCE_RETRIES, 
+    MAX_MARKET_PRICE_RETRIES, RETRY_DELAY_MIN, RETRY_DELAY_MAX
+)
 from .exceptions import TradeException, FokOrderException
 from .utils import logger
 
@@ -207,7 +210,8 @@ class BackpackTrade(Backpack):
             
         return False
 
-    @retry(stop=stop_after_attempt(10), wait=wait_random(5, 7), reraise=True,
+    @retry(stop=stop_after_attempt(MAX_BUY_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX), reraise=True,
            retry=retry_if_exception_type(FokOrderException))
     async def buy(self, symbol: str):
         side = 'buy'
@@ -218,7 +222,8 @@ class BackpackTrade(Backpack):
 
         await self.trade(symbol, amount, side, price)
 
-    @retry(stop=stop_after_attempt(10), wait=wait_random(5, 7), reraise=True,
+    @retry(stop=stop_after_attempt(MAX_SELL_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX), reraise=True,
            retry=retry_if_exception_type(FokOrderException))
     async def sell(self, symbol: str, use_global_options: bool = True, use_retry_parameters: bool = False):
         side = 'sell'
@@ -277,7 +282,8 @@ class BackpackTrade(Backpack):
             logger.debug(traceback.format_exc())
             return False
 
-    @retry(stop=stop_after_attempt(7), wait=wait_random(2, 5),
+    @retry(stop=stop_after_attempt(MAX_BALANCE_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX),
            before_sleep=lambda e: logger.info(f"Get Balance. Retrying... | {e}"),
            reraise=True)
     async def get_balance(self):
@@ -292,7 +298,8 @@ class BackpackTrade(Backpack):
 
         return await response.json()
 
-    @retry(stop=stop_after_attempt(7), wait=wait_random(2, 5),
+    @retry(stop=stop_after_attempt(MAX_BALANCE_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX),
            before_sleep=lambda e: logger.info(f"Get price and amount. Retrying... | {e}"),
            retry=retry_if_not_exception_type(TradeException), reraise=True)
     async def get_trade_info(self, symbol: str, side: str, token: str, use_global_options: bool = True):
@@ -341,7 +348,8 @@ class BackpackTrade(Backpack):
 
         return price, amount
 
-    @retry(stop=stop_after_attempt(9), wait=wait_random(2, 5), reraise=True,
+    @retry(stop=stop_after_attempt(MAX_SELL_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX), reraise=True,
            before_sleep=lambda e: logger.info(f"Execute Trade. Retrying... | {e}"),
            retry=retry_if_not_exception_type((TradeException, FokOrderException)))
     async def trade(self, symbol: str, amount: str, side: str, price: str):
@@ -403,10 +411,10 @@ class BackpackTrade(Backpack):
 
         raise TradeException(f"Failed to trade! Check logs for more info. Response: {resp_text}")
 
-    @retry(stop=stop_after_attempt(5), before_sleep=
-           lambda e: logger.info(f"Get market price. Retrying... | {e.outcome}"),
+    @retry(stop=stop_after_attempt(MAX_MARKET_PRICE_RETRIES), 
+           before_sleep=lambda e: logger.info(f"Get market price. Retrying... | {e.outcome}"),
            retry=retry_if_not_exception_type(TradeException),
-           wait=wait_random(2, 5), reraise=True)
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX), reraise=True)
     async def get_market_price(self, symbol: str, side: str, depth: int = 1):
         from inputs.config import MARKET_PRICE_ADJUSTMENT
         
@@ -500,7 +508,8 @@ class BackpackTrade(Backpack):
         
         logger.info(f"Conversion complete! Final USDC balance: {usdc_balance:.2f} USDC")
 
-    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
+    @retry(stop=stop_after_attempt(MAX_BALANCE_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX),
            before_sleep=lambda e: logger.info(f"Get order status. Retrying... | {e}"),
            reraise=True)
     async def get_order_status(self, symbol: str, order_id: str):
@@ -508,7 +517,8 @@ class BackpackTrade(Backpack):
         response = await self.get_order(symbol, order_id)
         return response
         
-    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
+    @retry(stop=stop_after_attempt(MAX_BALANCE_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX),
            before_sleep=lambda e: logger.info(f"Get order. Retrying... | {e}"),
            reraise=True)
     async def get_order(self, symbol: str, order_id: str):
@@ -522,7 +532,8 @@ class BackpackTrade(Backpack):
         response = await self.get_request(endpoint)
         return response
     
-    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 5),
+    @retry(stop=stop_after_attempt(MAX_BALANCE_RETRIES), 
+           wait=wait_random(RETRY_DELAY_MIN, RETRY_DELAY_MAX),
            before_sleep=lambda e: logger.info(f"Cancel order. Retrying... | {e}"),
            reraise=True)
     async def cancel_order(self, symbol: str, order_id: str):
