@@ -117,12 +117,18 @@ For detailed information on grid trading, see the [Grid Trading Documentation](c
 
 This project uses git tags to mark specific versions. If you're not familiar with coding but want to use a specific version:
 
+### How to List All Available Versions
+```bash
+# List all tags (versions)
+git tag -l
+
+# Show tags with their creation dates
+git for-each-ref --sort=-creatordate --format '%(refname:short) - %(creatordate:short)' refs/tags
+```
+
 ### How to Check the Current Version
 ```bash
-# On Windows
-git describe --tags
-
-# On Mac/Linux
+# Show current version
 git describe --tags
 ```
 
@@ -131,6 +137,15 @@ git describe --tags
 # First, save any changes you've made to config files
 # Then run:
 git checkout v1.2.0  # Replace with the version you want
+```
+
+### How to Create a New Release Tag (for Developers)
+```bash
+# Create a new version tag
+git tag -a v1.5.0 -m "Version 1.5.0 with XYZ feature"
+
+# Push tag to remote repository
+git push origin v1.5.0
 ```
 
 ### Available Versions
